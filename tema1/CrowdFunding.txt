@@ -2,100 +2,69 @@
 
 pragma solidity >=0.7.0 <0.9.0;
 
-import "./SponsorFunding.sol";
-import "./DistributeFunding.sol";
-
-contract CrowdFunding {
-
-    // Funding information
-    // address payable crowdFundingAdress; // Asta nu e necesara. Contractele au o adresa proprie si se poate depozita acolo
-    fundStates state;
-    int fundingGoal;
-
-    //Contributor information
-    address[] contributorAdresses;
-    mapping (address => contributor) contributorDetails;
-
-    //Instances of the other needed classes
-    SponsorFunding sponsorFunding;
-    DistributeFunding distributeFunding;
-
-    constructor(int goal) {
-        state = fundStates.nefinantat;
-        fundingGoal = goal;
-        sponsorFunding = new SponsorFunding(50);
-    }
-
-    struct contributor {
+contract DistributeFunding{
+    struct recipient{
         string name;
-        uint256 contrinutedAmount;
+        int share;
+        bool withdrawn;
         bool registered;
     }
+    uint256 receivedBalance;
+    address payable owner;
+    int percentage;
+    address payable[] recipientAdresses;
+    mapping (address => recipient) recipientInfo;
+    CrowdFunding crowdFunding;
 
-    enum fundStates{ nefinantat, prefintat, finantat }
-
-    function getSponsorFundingAddress() public view returns(address) {
-        return address(sponsorFunding);
+    constructor() {
+        percentage = 0;
+        receivedBalance = 0;
     }
 
-    function getFundsAmount() public view returns (uint256) {
-        // return crowdFundingAdress.balance;
+    event ValueReceived(uint256 amount);
+
+    function addRecipient(string memory recipientName) public {
+        require(recipientInfo[msg.sender].registered == false, "Recipient already registered");
+        require(verifyPercentage(recipientInfo[msg.sender].share) == true, "Maximum number of beneficiaries has been reached");
+        recipientAdresses.push(payable(msg.sender));
+        recipientInfo[msg.sender] = recipient({
+            name: recipientName,
+            share: 20,
+            withdrawn: false,
+            registered: true
+        });
+    }
+
+    function getAmount() public view returns (uint256) {
         return address(this).balance;
     }
 
-    function getFundState() public view returns (fundStates) {
-        return state;
+    function getAddresses() public view returns (address payable[] memory) {
+        return recipientAdresses;
     }
 
-    function addContributor(string memory contrinutorName) public {
-        contributorAdresses.push(msg.sender);
-        contributorDetails[msg.sender] = contributor({name:contrinutorName, contrinutedAmount:0, registered:true});
-    }
-
-    function contribute() payable public {
-        require(state == fundStates.nefinantat, "Contributions are no longer accepted");
-        require(contributorDetails[msg.sender].registered == true, "You were not registered as a contributor");
-        //payable(address(this)).transfer(msg.value); // Nu-i nevoie sa faci asta ca se face automat
-
-        contributorDetails[msg.sender].contrinutedAmount = msg.value;
-        // if ( int(sponsorFunding.getBalance() + this.getFundsAmount()) >= fundingGoal){
-        if ( int(getSponsorFundingBalance() + this.getFundsAmount()) >= fundingGoal){
-            state = fundStates.prefintat;
-            processCrowdFundingFinish();
+    function verifyPercentage(int percent) private returns (bool) {
+        if(percentage + percent <= 100){
+            percentage += percent;
+            return true;
         }
+        return false;
     }
 
-    function retrieveFunds(uint256 amount) payable public{
-        require(state == fundStates.nefinantat, "Retrivals are no longer accepted");
-        require(contributorDetails[msg.sender].registered == true, "You were not registered as a contributor");
-        require(int(contributorDetails[msg.sender].contrinutedAmount) >= int(amount), "You can not retrive more than was deposited");
+    function withdrawAmount() public payable{
+        require(recipientInfo[msg.sender].withdrawn == false, "You can withdraw funds only once");
+        uint256 sharedSum;
+        sharedSum = uint256((int(receivedBalance) * recipientInfo[msg.sender].share) / 100);
+        emit ValueReceived(sharedSum);
+        require(address(this).balance > sharedSum, "insufficient funds");
         address payable user = payable(msg.sender);
-        user.transfer(amount);
+        user.transfer(sharedSum);
+        recipientInfo[msg.sender].withdrawn = true;
     }
 
-    // function processCrowdFundingFinish() payable private {
-    function processCrowdFundingFinish() private {
-        require(state == fundStates.prefintat, "Can't end crowdFunding before collection of funds finished");
-        getSponsorization();
-        // payable(address(distributeFunding)).transfer(this.getFundsAmount());
-        // distributeFunding.notifyFundingFinish(this);
+    //need this fallback function to receive money
+    receive() external payable {
+        // receivedBalance = msg.value; // Daca fac asta, callul ajunge sa foloseasca prea mult gas
+      //  emit ValueReceived(msg.value);
     }
-
-    function getSponsorization() private{
-        sponsorFunding.sponsor(getFundsAmount());
-    }
-
-    function getdistributeFundingState() public view returns (uint256) {
-        return address(distributeFunding).balance;
-    }
-
-    function getSponsorFundingBalance() view public returns(uint) {
-        return sponsorFunding.getContractBalance();
-    }
-
-    fallback () external {
-        revert("");
-    }
-
-    receive() external payable {}
 }
