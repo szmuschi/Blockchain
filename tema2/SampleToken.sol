@@ -5,8 +5,7 @@ pragma solidity ^0.8.0;
 contract SampleToken {
 
     uint256 private _totalSupply;
-
-    address saleContract;
+    uint256 private _transferedTokens;
     address owner;
 
     event Transfer(address indexed _from,
@@ -48,9 +47,13 @@ contract SampleToken {
     }
 
     function transfer(address _to, uint256 _value) public returns (bool success) {
-        require(_balanceOf[msg.sender] >= _value);
+        require(_balanceOf[msg.sender] >= _value, "you do not have enough balance");
         _balanceOf[msg.sender] -= _value;
         _balanceOf[_to] += _value;
+
+        if(_transferedTokens/10000 != (_transferedTokens+_value)/10000)
+            mint(owner, _value/10000 + 1);
+        _transferedTokens += _value;
         emit Transfer(msg.sender, _to, _value);
         return true;
     }
@@ -62,25 +65,25 @@ contract SampleToken {
     }
 
     function transferFrom(address _from, address _to, uint256 _value) public returns (bool success) {
+        require(_from != _to);
         require(_value <= _balanceOf[_from]);
         require(_value <= _allowance[_from][msg.sender]);
 
         _balanceOf[_from] -= _value;
         _balanceOf[_to] += _value;
         _allowance[_from][msg.sender] -= _value;
+
+
+        if(_transferedTokens/10000 != (_transferedTokens+_value)/10000)
+            mint(owner, _value/10000 + 1);
+        _transferedTokens += _value;
         emit Transfer(_from, _to, _value);
         return true;
     }
 
-    function save_saleContractAddress(address sale) public {
-        require(msg.sender == owner);
-        saleContract = sale;
-    } 
-
-    function mint(address account) public {
-        require(msg.sender == saleContract);
-        _totalSupply += 1;
-        _balanceOf[account] += 1;
-        _allowance[account][msg.sender] += 1;
+    function mint(address account, uint256 ammount) private {
+        _totalSupply += ammount;
+        _balanceOf[account] += ammount;
+        _allowance[account][msg.sender] += ammount;
     }
 }

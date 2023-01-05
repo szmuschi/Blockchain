@@ -28,8 +28,6 @@ contract SampleTokenSale {
     function buyTokens(uint256 _numberOfTokens) public payable {
         require(msg.value >= _numberOfTokens * tokenPrice);
         require(tokenContract.transferFrom(owner, msg.sender, _numberOfTokens));
-        if(tokensSold/10000 != (tokensSold+_numberOfTokens)/10000)
-            tokenContract.mint(owner);
         tokensSold += _numberOfTokens;
         emit Sell(msg.sender, _numberOfTokens);
         payable(msg.sender).transfer(msg.value - (_numberOfTokens * tokenPrice));
